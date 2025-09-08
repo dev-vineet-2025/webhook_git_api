@@ -46,21 +46,21 @@ app = FastAPI()
 @app.post("/webhook/github")
 async def github_webhook(
     request: Request,
-    x_hub_signature_256: Optional[str] = Header(None),  # Make it optional with proper typing
+    # x_hub_signature_256: Optional[str] = Header(None),  # Make it optional with proper typing
     x_github_event: Optional[str] = Header(None)  # Also capture the event type
 ):
     """
     Handle GitHub webhook events with proper signature verification.
     """
+    import pdb;pdb.set_trace();
     # Get raw payload
     payload = await request.body()
-    
     # Verify the signature
-    if not verify_github_signature(payload, x_hub_signature_256, GITHUB_SECRET):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing signature"
-        )
+    # if not verify_github_signature(payload, x_hub_signature_256, GITHUB_SECRET):
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="Invalid or missing signature"
+    #     )
     
     # Parse JSON payload
     try:
