@@ -127,37 +127,29 @@ async def github_webhook(
     request: Request,
     x_github_event: Optional[str] = Header(None)
 ):
-    payload = await request.body()
-    print(f"[WEBHOOK] Received GitHub event: {x_github_event}")
-    print(f"[WEBHOOK] Raw payload: {payload.decode('utf-8')}")
-
     try:
-        event_data = json.loads(payload.decode("utf-8"))
-    except json.JSONDecodeError:
-        print("[WEBHOOK] Failed to decode JSON")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON payload"
-        )
+        raw_payload = await request.body()
+        print(f"[WEBHOOK] Received GitHub webhook: {raw_payload!r}")
+        print(f"[WEBHOOK] Received GitHub event: {x_github_event}")
 
-    if x_github_event == "push":
-        print(f"[WEBHOOK] Push event for repo: {event_data.get('repository', {}).get('full_name')}")
-    elif x_github_event == "pull_request":
-        pr_action = event_data.get('action')
-        pr_number = event_data.get('pull_request', {}).get('number')
-        print(f"[WEBHOOK] Pull request {pr_action}: #{pr_number}")
-    elif x_github_event == "issues":
-        issue_action = event_data.get('action')
-        issue_number = event_data.get('issue', {}).get('number')
-        print(f"[WEBHOOK] Issue {issue_action}: #{issue_number}")
-    else:
-        print(f"[WEBHOOK] Unhandled event type: {x_github_event}")
+        if not raw_payload:
+            return {"error": "Empty payload"}
 
-    return {
-        "status": "success",
-        "event_type": x_github_event,
-        "message": "Webhook processed successfully"
-    }
+        # Decode JSON safely
+        try:
+            payload = json.loads(raw_payload.decode("utf-8"))
+        except json.JSONDecodeError as e:
+            print(f"[WEBHOOK] Failed to decode JSON: {e}")
+            return {"error": "Invalid JSON payload"}
+
+        print(f"[WEBHOOK] Payload keys: {list(payload.keys())}")
+
+        return {"status": "Webhook processed", "event": x_github_event}
+
+    except Exception as e:
+        print(f"[WEBHOOK] Exception: {e}")
+        raise HTTPException(status_code=500, detail="Internal error")
+
 
 @app.get("/health")
 async def health_check():
