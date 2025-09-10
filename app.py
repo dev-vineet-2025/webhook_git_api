@@ -8,7 +8,7 @@ from typing import Optional
 import jwt
 import time
 import httpx
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 
 # Try to load python-dotenv if available
 try:
@@ -70,12 +70,16 @@ app = FastAPI()
 async def github_login():
     # Runtime check for OAuth configuration
     if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
-        return {
+        error_data = {
             "error": "OAuth not configured",
             "message": "GitHub OAuth credentials are missing",
             "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
             "help": "Create a GitHub OAuth App at https://github.com/settings/applications/new"
         }
+        return JSONResponse(
+            content=json.loads(json.dumps(error_data)),
+            status_code=400
+        )
     
     redirect_uri = f"{REDIRECT_BASE_URL}/callback"
     url = (
@@ -85,19 +89,27 @@ async def github_login():
         "scope=repo user"
     )
     print(f"[LOGIN] Redirecting to GitHub OAuth URL:\n{url}")
-    return RedirectResponse(url)
+    # return RedirectResponse(url)
+    return JSONResponse(
+        content=json.loads(json.dumps(url)),
+        status_code=200
+    )
 
 @app.get("/callback")
 async def github_callback(code: str):
     print(f"[CALLBACK] Received code from GitHub: {code}")
-    
+        
     # Runtime check for OAuth configuration
     if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
-        return {
+        error_data = {
             "error": "OAuth not configured",
             "message": "Cannot complete OAuth flow - missing credentials",
             "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"]
         }
+        return JSONResponse(
+            content=json.loads(json.dumps(error_data)),
+            status_code=400
+        )
     
     redirect_uri = f"{REDIRECT_BASE_URL}/callback"
     
@@ -134,19 +146,27 @@ async def github_callback(code: str):
 
 @app.get("/success")
 async def success():
-    return {
+    response_data = {
         "status": "success",
         "message": "GitHub OAuth authentication successful!",
         "note": "Your access token has been processed successfully."
     }
+    return JSONResponse(
+        content=json.loads(json.dumps(response_data)),
+        status_code=200
+    )
 
 @app.get("/error")
 async def error():
-    return {
+    response_data = {
         "status": "error",
         "message": "GitHub OAuth authentication failed.",
         "note": "Please try again by visiting /login/github"
     }
+    return JSONResponse(
+        content=json.loads(json.dumps(response_data)),
+        status_code=400
+    )
 
 @app.post("/webhook/github")
 async def github_webhook(
@@ -159,18 +179,30 @@ async def github_webhook(
         print(f"[WEBHOOK] Received GitHub event: {x_github_event}")
 
         if not raw_payload:
-            return {"error": "Empty payload"}
+            error_data = {"error": "Empty payload"}
+            return JSONResponse(
+                content=json.loads(json.dumps(error_data)),
+                status_code=400
+            )
 
         # Decode JSON safely
         try:
             payload = json.loads(raw_payload.decode("utf-8"))
         except json.JSONDecodeError as e:
             print(f"[WEBHOOK] Failed to decode JSON: {e}")
-            return {"error": "Invalid JSON payload"}
+            error_data = {"error": "Invalid JSON payload"}
+            return JSONResponse(
+                content=json.loads(json.dumps(error_data)),
+                status_code=400
+            )
 
         print(f"[WEBHOOK] Payload keys: {list(payload.keys())}")
 
-        return {"status": "Webhook processed", "event": x_github_event}
+        response_data = {"status": "Webhook processed", "event": x_github_event}
+        return JSONResponse(
+            content=json.loads(json.dumps(response_data)),
+            status_code=200
+        )
 
     except Exception as e:
         print(f"[WEBHOOK] Exception: {e}")
@@ -180,7 +212,11 @@ async def github_webhook(
 @app.get("/health")
 async def health_check():
     print("[HEALTH] Health check called")
-    return {"status": "healthy"}
+    response_data = {"status": "healthy"}
+    return JSONResponse(
+        content=json.loads(json.dumps(response_data)),
+        status_code=200
+    )
 
 if __name__ == "__main__":
     import uvicorn
