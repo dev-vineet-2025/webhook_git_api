@@ -2,6 +2,7 @@ import hmac
 import hashlib
 import json
 import os
+import sys
 from fastapi import FastAPI, Request, Header, HTTPException, status
 from typing import Optional
 import jwt
@@ -9,18 +10,25 @@ import time
 import httpx
 from fastapi.responses import RedirectResponse
 
-# Load environment variables
-GITHUB_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET")
+# Try to load python-dotenv if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("[INIT] Loaded .env file successfully")
+except ImportError:
+    print("[INIT] python-dotenv not installed - using system environment variables only")
+    print("[INIT] To install: pip install python-dotenv")
+
+# Load environment variables with fallbacks
+GITHUB_SECRET = os.getenv("GITHUB_SECRET")
 GITHUB_APP_ID = os.getenv("GITHUB_APP_ID")
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
 GITHUB_PRIVATE_KEY = os.getenv("GITHUB_PRIVATE_KEY")
+REDIRECT_BASE_URL = os.getenv("REDIRECT_BASE_URL", "https://6772b8710184.ngrok-free.app")
 
-print(f"[INIT] GITHUB_CLIENT_ID: {GITHUB_CLIENT_ID}")
-print(f"[INIT] GITHUB_CLIENT_SECRET: {GITHUB_CLIENT_SECRET}")
-print(f"[INIT] GITHUB_APP_ID: {GITHUB_APP_ID}")
-print(f"[INIT] GITHUB_SECRET is {'set' if GITHUB_SECRET else 'NOT set'}")
-print(f"[INIT] GITHUB_PRIVATE_KEY is {'set' if GITHUB_PRIVATE_KEY else 'NOT set'}")
+
+print("\n" + "="*60)
 
 def create_jwt():
     now = int(time.time())
@@ -60,7 +68,16 @@ app = FastAPI()
 
 @app.get("/login/github")
 async def github_login():
-    redirect_uri = "https://6772b8710184.ngrok-free.app/callback"
+    # Runtime check for OAuth configuration
+    if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+        return {
+            "error": "OAuth not configured",
+            "message": "GitHub OAuth credentials are missing",
+            "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+            "help": "Create a GitHub OAuth App at https://github.com/settings/applications/new"
+        }
+    
+    redirect_uri = f"{REDIRECT_BASE_URL}/callback"
     url = (
         f"https://github.com/login/oauth/authorize?"
         f"client_id={GITHUB_CLIENT_ID}&"
@@ -73,7 +90,16 @@ async def github_login():
 @app.get("/callback")
 async def github_callback(code: str):
     print(f"[CALLBACK] Received code from GitHub: {code}")
-    redirect_uri = "https://6772b8710184.ngrok-free.app/callback"
+    
+    # Runtime check for OAuth configuration
+    if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+        return {
+            "error": "OAuth not configured",
+            "message": "Cannot complete OAuth flow - missing credentials",
+            "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"]
+        }
+    
+    redirect_uri = f"{REDIRECT_BASE_URL}/callback"
     
     async with httpx.AsyncClient() as client:
         response = await client.post(
